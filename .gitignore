@@ -1,0 +1,7 @@
+*.pth
+*.pt
+*.bin
+*.log
+*.safetensors
+finetuned/
+wandb/
