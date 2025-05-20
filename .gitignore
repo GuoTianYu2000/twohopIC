@@ -5,3 +5,5 @@
 *.safetensors
 finetuned/
 wandb/
+*.pyc
+src/__pycache__

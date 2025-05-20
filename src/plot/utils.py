@@ -4,25 +4,22 @@ import torch
 import seaborn as sns
 import os
 from omegaconf import OmegaConf
-from model import *
 import pickle
 import numpy as np
 from torch.nn import functional as F
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.metrics import mean_squared_error
+from model import Transformer
+from two_hop_data import multi_hop_format, iterate_batches
 # from graph_data import *
-
+import matplotlib.colors as mcolors
 
 def compute_loss(y, pred, seqs_ans_pos_start, seqs_ans_pos_end, indices, type='cross_entropy'):
     y_start = torch.LongTensor(seqs_ans_pos_start).unsqueeze(-1)
     y_end = torch.LongTensor(seqs_ans_pos_end).unsqueeze(-1)
-    # mask_pred = (indices >= y_pos).long().cuda()
     mask = ((indices >= y_start) & (indices < y_end)).long().cuda()
     mask_bias = -1 * ((indices < y_start) | (indices >= y_end)).long().cuda()
-    # masked_pred = pred * mask_pred.unsqueeze(-1)
-    # masked_x = x*mask
     masked_y = y*mask + mask_bias
-    # loss = F.cross_entropy(masked_pred[:, :-1, :].flatten(0, 1), masked_x[:, 1:].flatten(0, 1), reduction='none')
     if type == 'cross_entropy':
         loss = F.cross_entropy(pred.flatten(0, 1), masked_y.flatten(0, 1), ignore_index=-1)
     elif type == '0-1':
@@ -30,50 +27,102 @@ def compute_loss(y, pred, seqs_ans_pos_start, seqs_ans_pos_end, indices, type='c
         indiv_loss = indiv_loss.float()
         loss = torch.mean(indiv_loss)
     return loss
-def load_model(date, depth, layer, head, steps, compute_loss=True, run_path=None):
-    if run_path is None:
-        run_path = f"{PROJECT_PATH}/runs/{date}layer{layer}head{head}"
-    else:
-        run_path = os.path.join(PROJECT_PATH, run_path)
+def load_model(layer, head, steps, run_path, get_loss=True, device=None):
     cfg = OmegaConf.load(f"{run_path}/configure.yaml")
-    cfg.model_args.dim = 256
-    cfg.model_args.n_heads = head
-    cfg.model_args.n_layers = layer
-    if getattr(cfg.data_args, "max_seq_len", None) == None:
+    if not getattr(cfg.data_args, "max_seq_len", None):
         cfg.data_args.max_seq_len = cfg.data_args.seq_len
-    ds = two_hop_format(cfg.data_args)
+    ds = multi_hop_format(cfg.data_args)
     cfg.model_args.vocab_size = len(ds.vocab)+len(ds.special_tokens)
     model = Transformer(cfg.model_args)
-    model.cuda()
+    model.to(device)
     state_path = f"{run_path}/state_{steps}.pt"
     state = torch.load(state_path, map_location=device)
     model.load_state_dict(state['model_state_dict'])
-    if compute_loss:
+    if get_loss:
         seqs, seqs_ans_pos_start, seqs_ans_pos_end = next(iterate_batches(ds, num_workers=48, seed=42, batch_size=512, total_count=1))
         indices = torch.arange(cfg.data_args.max_seq_len).expand(cfg.data_args.batch_size, -1)
 
-        x = torch.LongTensor(seqs).cuda()
+        x = torch.LongTensor(seqs).to(device)
+        y = x[:, 1:]
+        x = x[:, :-1]
         pred = model(x)
-        loss = compute_loss(x, pred, seqs_ans_pos_start, seqs_ans_pos_end, indices)
+        loss = compute_loss(y, pred, seqs_ans_pos_start, seqs_ans_pos_end, indices)
         print(loss.item())
     else:
         seqs, seqs_ans_pos_start, seqs_ans_pos_end = None, None, None
     return cfg, model, seqs, seqs_ans_pos_start, seqs_ans_pos_end
-def plot_attns(outputs_list, seq_idx, seq_start, seq_len):
+def plot_attns(seqs, outputs_list, seq_indices, seq_start, seq_len, layer, head, numToChr=None, save_dir="neurips_figures"):
+    if not isinstance(seq_indices, int):
+        raise ValueError("We only support one sequence for now")
+    
+    plot_count = 0
     for layer_idx in range(layer):
         for head_idx in range(head):
-            attns = outputs_list[layer_idx]['attn_weights'].detach().cpu().numpy()
-            attns_plot = attns[seq_idx, head_idx, seq_start:seq_len, seq_start:seq_len]
-            mask = 1 - np.tril(np.ones_like(attns_plot))
-            # label_text = text_test
+            attns = outputs_list[layer_idx]['attn_logits'].detach()
+            attns_plot = attns[seq_indices, head_idx, seq_start:seq_len, seq_start:seq_len].cpu().numpy()
+            
             print(f"Layer {layer_idx}, Head {head_idx}")
-            plt.figure(figsize=(12, 8))
+            fig, ax = plt.subplots(figsize=(8, 8))
+            
+            # Create labels
+            nums = seqs[seq_indices][seq_start:seq_len]
+            if numToChr is not None:
+                labels = [numToChr.get(num, '') for num in nums]
+                labels[0] = r'$\langle s \rangle$'
+            else:
+                labels = nums
+            
+            # Create mask with the same shape as attns_plot
+            mask = np.triu(np.ones_like(attns_plot), k=1)
+
+            # Determine whether to show color bar
+            show_cbar = plot_count >= 2
+            gamma = 1
+
+            # Plot with seaborn's default colormap
             sns.heatmap(
                 attns_plot, mask=mask,
-                cmap="Blues", xticklabels=seqs[seq_idx][seq_start:seq_len], yticklabels=[],
-                vmin=0, vmax=1, cbar=False, cbar_kws={"shrink": 1.0, "pad": 0.01, "aspect":50, "ticks": [0, 1]}
+                xticklabels=labels, yticklabels=labels,
+                cbar=show_cbar,
+                cmap="Blues", norm=mcolors.PowerNorm(gamma=gamma), 
+                cbar_kws={
+                    "shrink": 1,     # Keep original height
+                    "pad": 0.02,       # Distance from plot
+                    "fraction": 0.03,  # Width of the colorbar (smaller = thinner)
+                    "aspect": 50,      # More slender aspect ratio
+                } if show_cbar else {}
             )
+
+            if show_cbar:
+                cbar = ax.collections[0].colorbar
+                cbar.ax.tick_params(labelsize=30)  # Set tick label size here
+            
+            # Increase font size for tick labels
+            plt.xticks(fontsize=30)
+            plt.yticks(fontsize=30)
+            
+            # Add rectangle outlines with thinner gray lines for better visibility
+            for i in range(len(attns_plot)):
+                for j in range(i+1):
+                    ax.add_patch(plt.Rectangle((j, i), 1, 1, fill=False, edgecolor='black', lw=0.5, alpha=0.7))
+                
+            ax.set_ylim(len(attns_plot), 0)
+            ax.set_xlim(0, len(attns_plot))
+            
+            # Rotate x-tick labels by 90 degrees
+            plt.xticks(rotation=90)
+            
+            # Adjust layout for better appearance
+            plt.tight_layout()
+            
+            # Save the figure if save_dir is provided
+            if save_dir:
+                os.makedirs(save_dir, exist_ok=True)
+                plt.savefig(os.path.join(save_dir, f"layer_{layer_idx}_head_{head_idx}.pdf"), 
+                           dpi=300, bbox_inches='tight')
+            
             plt.show()
+            plot_count += 1
 def getSumIndx(seqs, twoSum, ):
     getIndx = lambda x, t, i: torch.nonzero(torch.isin(x, torch.tensor([t]))).squeeze(-1)[i].item()
     twoSumIndx = []
@@ -124,14 +173,14 @@ def get_attns(twoSumIndx, seqs_ans_pos_start, outputs_list, layer):
         attns[layer_idx] = attn_layer
     return attns
 
-def MakeAttnSummary(cfg, outputs_list, seqs, seqs_ans_pos_start, seqs_ans_pos_end, twoSumIndx):
+def MakeAttnSummary(cfg, outputs_list, seqs, seqs_ans_pos_start, seqs_ans_pos_end, twoSumIndx, used_model):
     layer = cfg.model_args.n_layers
     attns = get_attns(twoSumIndx, seqs_ans_pos_start, outputs_list, layer)
     attnSummary = {}
     difLogitsSummary = {}
     for layer_idx in range(layer):
         attn_layer_reorg_mean, attn_layer_reorg = get_mean_attn(attns[layer_idx])
-        logits = model.output(model.norm(model.layers[layer_idx].attention.wo(outputs_list[layer_idx]['value_states'][:, 0, :, :])))
+        logits = used_model.output(used_model.norm(used_model.layers[layer_idx].attention.wo(outputs_list[layer_idx]['value_states'][:, 0, :, :])))
         logits = logits[: , :seqs_ans_pos_start[0]+1, :]
         x = torch.LongTensor(seqs).to(logits.device)[:, :seqs_ans_pos_start[0]+1].unsqueeze(-1)
         target_logits = torch.gather(logits, 2, x)

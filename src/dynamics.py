@@ -12,8 +12,8 @@ import sys
 import yaml
 import seaborn as sns
 import matplotlib.pyplot as plt
-from plot.analyze_utils import *
-from plot.plot_utils import *
+from .plot.utils import *
+from .plot.plot_utils import *
 from tqdm import tqdm
 
 from omegaconf import OmegaConf
@@ -23,8 +23,8 @@ from torch.nn import functional as F
 from typing import List, Optional, Tuple
 import os
 # os.chdir("/data/tianyu_guo/birth")
-from model import *
-from two_hop_data import *
+from .model import *
+from .two_hop_data import *
 
 
 """values that you need to change or provide in the command line"""
@@ -53,35 +53,8 @@ def compute_loss(y, pred, seqs_ans_pos_start, seqs_ans_pos_end, indices, type='c
         indiv_loss = indiv_loss.float()
         loss = torch.mean(indiv_loss)
     return loss
-def load_model(date, depth, layer, head, steps, compute_loss=True, run_path=None):
-    if run_path is None:
-        run_path = f"{PROJECT_PATH}/runs/{date}layer{layer}head{head}"
-    else:
-        run_path = os.path.join(PROJECT_PATH, run_path)
-    cfg = OmegaConf.load(f"{run_path}/configure.yaml")
-    cfg.model_args.dim = 256
-    cfg.model_args.n_heads = head
-    cfg.model_args.n_layers = layer
-    if getattr(cfg.data_args, "max_seq_len", None) == None:
-        cfg.data_args.max_seq_len = cfg.data_args.seq_len
-    ds = two_hop_format(cfg.data_args)
-    cfg.model_args.vocab_size = len(ds.vocab)+len(ds.special_tokens)
-    model = Transformer(cfg.model_args)
-    model.cuda()
-    state_path = f"{run_path}/state_{steps}.pt"
-    state = torch.load(state_path, map_location=device)
-    model.load_state_dict(state['model_state_dict'])
-    if compute_loss:
-        seqs, seqs_ans_pos_start, seqs_ans_pos_end = next(iterate_batches(ds, num_workers=48, seed=42, batch_size=512, total_count=1))
-        indices = torch.arange(cfg.data_args.max_seq_len).expand(cfg.data_args.batch_size, -1)
 
-        x = torch.LongTensor(seqs).cuda()
-        pred = model(x)
-        loss = compute_loss(x, pred, seqs_ans_pos_start, seqs_ans_pos_end, indices)
-        print(loss.item())
-    else:
-        seqs, seqs_ans_pos_start, seqs_ans_pos_end = None, None, None
-    return cfg, model, seqs, seqs_ans_pos_start, seqs_ans_pos_end
+
 def plot_attns(outputs_list, seq_idx, seq_start, seq_len):
     for layer_idx in range(layer):
         for head_idx in range(head):
@@ -97,6 +70,7 @@ def plot_attns(outputs_list, seq_idx, seq_start, seq_len):
                 vmin=0, vmax=1, cbar=False, cbar_kws={"shrink": 1.0, "pad": 0.01, "aspect":50, "ticks": [0, 1]}
             )
             plt.show()
+
 def get_seperate_prob(model, seqs, seqs_ans_pos_start, seqs_ans_pos_end, twoSum, oneSum):
     hook = forward_hook([], '')
     pred, outputs_list = model.modified_forward_with_hook(torch.LongTensor(seqs)[:, :-1].cuda(), hook)
@@ -161,9 +135,9 @@ if __name__ == "__main__":
     args = OmegaConf.merge(OmegaConf.structured(args), OmegaConf.from_cli())
     device = f"cuda:{args.device_num}"
     torch.cuda.set_device(device)
-    model_date, layer, head, hopk, steps, run_path = args.date, args.layer, args.head, args.hopk, args.steps, args.run_path
+    model_date, layer, head, hopk, steps, run_path, project_path = args.date, args.layer, args.head, args.hopk, args.steps, args.run_path, args.project_path
     # run_path=f"pre-icml/L{layer}_hopk{hopk}"
-    cfg, model, seqs, seqs_ans_pos_start, seqs_ans_pos_end = load_model(model_date, None, layer, 1, steps, compute_loss=False, run_path=run_path)
+    cfg, model, seqs, seqs_ans_pos_start, seqs_ans_pos_end = load_model(model_date, None, layer, 1, steps, compute_loss=False, run_path=run_path, project_path=project_path, device=device)
     if cfg.task_name == "twoHop":
         ds = two_hop_format(cfg.data_args)
     elif cfg.task_name == "multiHop":
@@ -184,14 +158,15 @@ if __name__ == "__main__":
     contextSumDict = {}
     endSumDict = {}
     for steps in tqdm(log_steps):
-        cfg, model, _, _, _ = load_model(model_date, None, layer, 1, steps, compute_loss=False, run_path=run_path)
+        cfg, model, _, _, _ = load_model(model_date, None, layer, 1, steps, compute_loss=False, run_path=run_path, project_path=project_path, device=device)
+        import pdb; pdb.set_trace()
         twoProbSum, oneProbSum, contextSum, endSum = get_seperate_prob(model, seqs, seqs_ans_pos_start, seqs_ans_pos_end, twoSum, oneSum)
         twoProbSumDict[steps] = twoProbSum
         oneProbSumDict[steps] = oneProbSum
         contextSumDict[steps] = contextSum
         endSumDict[steps] = endSum
     
-    save_dir = os.path.join(PROJECT_PATH, run_path)
+    save_dir = os.path.join(project_path, run_path)
     os.makedirs(os.path.join(save_dir, "dynamics"), exist_ok=True)
     with open(os.path.join(save_dir, f"dynamics/twoProbSumDict.json"), "w") as f:
         json.dump(twoProbSumDict, f)

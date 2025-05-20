@@ -1,19 +1,7 @@
 from dataclasses import dataclass
-import itertools
-import logging
-import random
-import math
 import numpy as np
-import json
-import pickle
-import time
-import torch
-import sys
-import yaml
 import seaborn as sns
 import matplotlib.pyplot as plt
-from analyze_utils import *
-
 from omegaconf import OmegaConf
 from pathlib import Path
 from torch import nn, Tensor
@@ -21,6 +9,7 @@ from torch.nn import functional as F
 from typing import List, Optional, Tuple
 import os
 # os.chdir("/data/tianyu_guo/birth")
+from .utils import *
 from model import ModelArgs, Transformer, forward_hook, test_value, test_sink
 
 

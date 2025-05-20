@@ -13,15 +13,15 @@ import yaml
 import os
 import pdb
 import wandb
-
+from datetime import date
 from omegaconf import OmegaConf
 from pathlib import Path
 from torch import nn, Tensor
 from torch.nn import functional as F
 from typing import List, Optional, Tuple
 
-from two_hop_data import *
-from model import *
+from two_hop_data import two_hop_format, multi_hop_format, iterate_batches, compute_loss, DataArgs
+from model import Transformer, ModelArgs
 from tqdm import tqdm
 
 logging.getLogger().setLevel(logging.INFO)

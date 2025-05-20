@@ -223,13 +223,14 @@ def iterate_batches(ds: two_hop_format,
 def compute_loss(y, pred, seqs_ans_pos_start, seqs_ans_pos_end, indices):
     y_start = torch.LongTensor(seqs_ans_pos_start).unsqueeze(-1)
     y_end = torch.LongTensor(seqs_ans_pos_end).unsqueeze(-1)
-    # mask_pred = (indices >= y_pos).long().cuda()
+
     mask = ((indices >= y_start) & (indices < y_end)).long().cuda()
     mask_bias = -1 * ((indices < y_start) | (indices >= y_end)).long().cuda()
-    # masked_pred = pred * mask_pred.unsqueeze(-1)
-    # masked_x = x*mask
+
+
     masked_y = y*mask + mask_bias
-    # loss = F.cross_entropy(masked_pred[:, :-1, :].flatten(0, 1), masked_x[:, 1:].flatten(0, 1), reduction='none')
+
+
     loss = F.cross_entropy(pred.flatten(0, 1), masked_y.flatten(0, 1), ignore_index=-1)
     return loss
 

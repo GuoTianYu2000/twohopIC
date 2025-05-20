@@ -12,8 +12,8 @@ import sys
 import yaml
 import seaborn as sns
 import matplotlib.pyplot as plt
-from plot.analyze_utils import *
-from plot.plot_utils import *
+from .plot.utils import *
+from .plot.plot_utils import *
 from tqdm import tqdm
 
 from omegaconf import OmegaConf
@@ -34,8 +34,8 @@ steps = 10000 # the steps of the model
 run_path = f"pre-icml/L{layer}_hopk{hopk}" # the run path of the model
 
 
-from model import *
-from two_hop_data import *
+from .model import *
+from .two_hop_data import *
 
 
 device = DEVICE
@@ -61,9 +61,9 @@ if __name__ == "__main__":
     args = OmegaConf.merge(OmegaConf.structured(args), OmegaConf.from_cli())
     device = f"cuda:{args.device_num}"
     torch.cuda.set_device(device)
-    model_date, layer, head, hopk, steps, run_path = args.date, args.layer, args.head, args.hopk, args.steps, args.run_path
+    model_date, layer, head, hopk, steps, run_path, project_path = args.date, args.layer, args.head, args.hopk, args.steps, args.run_path, args.project_path
     # run_path=f"pre-icml/L{layer}_hopk{hopk}"
-    cfg, model, seqs, seqs_ans_pos_start, seqs_ans_pos_end = load_model(model_date, None, layer, 1, steps, compute_loss=False, run_path=run_path)
+    cfg, model, seqs, seqs_ans_pos_start, seqs_ans_pos_end = load_model(model_date, None, layer, 1, steps, compute_loss=False, run_path=run_path, project_path=project_path, device=device)
     if cfg.task_name == "twoHop":
         ds = two_hop_format(cfg.data_args)
     elif cfg.task_name == "multiHop":
@@ -79,21 +79,20 @@ if __name__ == "__main__":
         log_steps = np.arange(0, cfg.fine_grid_log, 5).tolist()
         log_steps.extend(np.arange(cfg.fine_grid_log, cfg.max_iters, 20).tolist())
         log_steps = [int(x) for x in log_steps]
-    
     attnSummaryStep = {}
     difLogitsSummaryStep = {}
     
     for steps in tqdm(log_steps):
-        cfg, model, _, _, _ = load_model(model_date, None, layer, 1, steps, compute_loss=False, run_path=run_path)
+        cfg, model, _, _, _ = load_model(model_date, None, layer, 1, steps, compute_loss=False, run_path=run_path, project_path=project_path, device=device)
         hook = forward_hook([], '')
         pred, outputs_list = model.modified_forward_with_hook(torch.LongTensor(seqs)[:, :-1].cuda(), hook)
 
         
-        attnSummary, difLogitsSummary = MakeAttnSummary(cfg, outputs_list, seqs, seqs_ans_pos_start, seqs_ans_pos_end, twoSumIndx)
+        attnSummary, difLogitsSummary = MakeAttnSummary(cfg, outputs_list, seqs, seqs_ans_pos_start, seqs_ans_pos_end, twoSumIndx, model)
         attnSummaryStep[steps] = attnSummary
         difLogitsSummaryStep[steps] = difLogitsSummary
     
-    save_dir = os.path.join(PROJECT_PATH, run_path)
+    save_dir = os.path.join(project_path, run_path)
     os.makedirs(os.path.join(save_dir, "dynamics"), exist_ok=True)
 
     attnSummaryStep_serializable = {k: {k1: {k2: {k3[0]+'->'+k3[1]: v3 for k3, v3 in v2.items()} for k2, v2 in v1.items()} for k1, v1 in v.items()} for k, v in attnSummaryStep.items()}
