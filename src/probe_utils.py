@@ -55,7 +55,7 @@ def add_missed_structures(model_name, struct, layers):
     return model_name
 
 
-def load_model(run_path_local="/Users/guotianyu/GitHub/birth/gens/special/dormant_copy", run_path_server="/data/tianyu_guo/birth/gens/special/dormant_copy_2", bos_num=1, train_steps=4999, delim=0, mix_p=None, n_layers=1, n_heads=1, no_attn_norm=(), no_ffn_norm=(), no_attn=(), no_ffn=(), linear_ffn=(), lr=0.0003, use_simple_model=False, use_vo=False, use_read_out=False, seed=42, with_data=True, with_optim=False, model_name=None, data_path_local="/Users/guotianyu/GitHub/birth/data", data_path_server="/data/tianyu_guo/birth/data", seeds=[42, 27], task_name='', device='cpu', state_name=None):
+def load_model(run_path_local="/Users/guoyour_name/GitHub/birth/gens/special/dormant_copy", run_path_server="/data/your_name_guo/birth/gens/special/dormant_copy_2", bos_num=1, train_steps=4999, delim=0, mix_p=None, n_layers=1, n_heads=1, no_attn_norm=(), no_ffn_norm=(), no_attn=(), no_ffn=(), linear_ffn=(), lr=0.0003, use_simple_model=False, use_vo=False, use_read_out=False, seed=42, with_data=True, with_optim=False, model_name=None, data_path_local="/Users/guoyour_name/GitHub/birth/data", data_path_server="/data/your_name_guo/birth/data", seeds=[42, 27], task_name='', device='cpu', state_name=None):
     if model_name is None:
         model_name = get_model_name(bos_num=bos_num, train_steps=train_steps, delim=delim, mix_p=mix_p, n_layers=n_layers, n_heads=n_heads, no_attn_norm=no_attn_norm, no_ffn_norm=no_ffn_norm, no_attn=no_attn, no_ffn=no_ffn, linear_ffn=linear_ffn, lr=lr, use_simple_model=use_simple_model, use_vo=use_vo, use_read_out=use_read_out, seed=seed)
     try:
@@ -341,7 +341,7 @@ def get_risk_by_token(ds, risk, triggers_pos, x, ):
     return risk_by_token
 
 # def load_model(date, depth, layer, head, steps, compute_loss=True, ):
-#     run_path = f"/data/tianyu/multi-head/runs/{date}depth{depth}layer{layer}head{head}"
+#     run_path = f"/data/your_name/multi-head/runs/{date}depth{depth}layer{layer}head{head}"
 #     cfg = OmegaConf.load(f"{run_path}/configure.yaml")
 #     cfg.model_args.dim = 256
 #     cfg.model_args.n_heads = head

@@ -30,7 +30,7 @@ logging.getLogger().setLevel(logging.INFO)
 @dataclass
 class WandbArgs:
     project: str = 'twoHop'
-    entity: str = 'tianyu_guo'
+    entity: str = 'your_name'
     name: str = 'rerun'
 
 def set_random_seed(seed):

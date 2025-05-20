@@ -7,3 +7,4 @@ finetuned/
 wandb/
 *.pyc
 src/__pycache__
+twohop/

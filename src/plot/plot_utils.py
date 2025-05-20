@@ -8,7 +8,7 @@ from torch import nn, Tensor
 from torch.nn import functional as F
 from typing import List, Optional, Tuple
 import os
-# os.chdir("/data/tianyu_guo/birth")
+# os.chdir("/data/your_name/birth")
 from .utils import *
 from model import ModelArgs, Transformer, forward_hook, test_value, test_sink
 

@@ -25,7 +25,7 @@ import os
 
 """values that you need to change or provide in the command line"""
 DEVICE = "cuda:3"
-PROJECT_PATH = "/home/tianyu/TwoHopIC" # the path of your working directory
+PROJECT_PATH = "/home/your_name/TwoHopIC" # the path of your working directory
 date = "2025-01-13" # the date of the model
 layer = 3 # the layer of the model
 head = 1 # the head of the model
