@@ -362,7 +362,7 @@ if __name__ == "__main__":
     parser.add_argument("--lora", action="store_true", help="Use LoRA weights for inference")
     args = parser.parse_args()
     # Set environment variables for GPU usage
-    os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "5,7"
     
     # Run evaluation
     evaluate_models(args.model, args.lora)

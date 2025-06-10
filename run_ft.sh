@@ -4,7 +4,7 @@
 if [ $# -lt 2 ]; then
   echo "Usage: $0 <mode> <model_key> [optional_args]"
   echo "  mode: 'fsdp' or 'deepspeed'"
-  echo "  model_key: 'qwen', 'llama2-7b', 'llama3-8b', 'llama3-70b', 'olmo'"
+  echo "  model_key: 'qwen', 'llama2-7b', 'llama3.1-8b', 'llama3.1-70b', 'olmo'"
   exit 1
 fi
 
@@ -13,7 +13,7 @@ MODEL_KEY=$2
 shift 2  # Remove the first two arguments
 
 # Set environment variables for proper GPU usage
-export CUDA_VISIBLE_DEVICES=0,1,2,3
+export CUDA_VISIBLE_DEVICES=5,7
 
 if [ "$MODE" = "fsdp" ]; then
   # Create a config file for FSDP
@@ -32,7 +32,7 @@ machine_rank: 0
 main_training_function: main
 mixed_precision: fp16
 num_machines: 1
-num_processes: 4
+num_processes: 2
 rdzv_backend: static
 same_network: true
 use_cpu: false
